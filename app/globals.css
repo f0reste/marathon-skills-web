@@ -63,6 +63,19 @@ button { cursor: pointer; }
   gap: 10px;
 }
 
+.topbar-right, .user-menu {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topbar-right { flex-wrap: wrap; justify-content: flex-end; }
+.user-menu { color: #e7fff2; font-size: 14px; font-weight: 700; }
+.user-avatar { width: 34px; height: 34px; object-fit: cover; background: white; border: 2px solid #bfd9ce; border-radius: 50%; }
+.user-avatar-empty { display: grid; place-items: center; color: var(--forest); }
+.logout-button { padding: 4px 0; color: var(--accent); background: transparent; border: 0; font-weight: 700; }
+.logout-button:hover { color: white; }
+
 .button, .nav-button {
   min-height: 42px;
   padding: 9px 18px;
@@ -85,6 +98,8 @@ button { cursor: pointer; }
 .button-primary { color: white; background: var(--forest); border-color: var(--forest); }
 .button-soft { color: var(--deep-forest); background: var(--mint); border-color: #d0e6db; }
 .button-danger { color: white; background: var(--danger); border-color: var(--danger); }
+.button-google { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; color: white; background: var(--forest); border-color: var(--forest); }
+.google-mark { display: grid; width: 24px; height: 24px; place-items: center; color: #4285f4; background: white; border-radius: 50%; font-size: 15px; font-weight: 800; }
 
 .page[hidden] { display: none; }
 .page-surface { min-height: calc(100vh - 145px); padding: 40px; }
@@ -215,6 +230,8 @@ h1 { margin-bottom: 8px; font-size: 32px; letter-spacing: 0; }
 .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
 .photo-filename { min-height: 20px; margin: 12px 0; color: var(--muted); overflow-wrap: anywhere; }
 .photo-actions .button { padding-inline: 12px; }
+.file-button { display: inline-flex; align-items: center; margin-right: 8px; cursor: pointer; }
+.file-button input { display: none; }
 .route-title { margin-top: 28px; }
 .route-list { display: grid; gap: 10px; padding-left: 20px; color: var(--muted); }
 .route-list .is-current { color: var(--forest); font-weight: 700; }
@@ -287,6 +304,8 @@ h1 { margin-bottom: 8px; font-size: 32px; letter-spacing: 0; }
 .participants-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) 150px 180px auto; gap: 12px; align-items: end; margin: 24px 0 16px; }
 .toolbar-count { grid-column: 1 / -1; color: var(--muted); font-size: 14px; }
 .toolbar-clear { min-height: 45px; }
+.api-notice { padding: 12px 14px; color: #7e2825; background: #fff0ef; border: 1px solid #efc4c1; border-radius: 6px; font-weight: 700; }
+.loading-state { margin: 70px 0; color: var(--muted); text-align: center; }
 .empty-state { max-width: 420px; margin: 90px auto; padding: 28px; text-align: center; background: #f8fcfa; border: 1px solid var(--line); border-radius: 8px; }
 .empty-state h2 { font-size: 24px; }
 .empty-state p { margin-bottom: 0; }
@@ -324,6 +343,29 @@ tbody tr:hover { background: #e7f6ed; }
 .dialog p { color: var(--muted); }
 .dialog-actions { justify-content: flex-end; margin-top: 22px; }
 
+.login-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(rgba(7,59,49,.88), rgba(7,59,49,.72)), url("/assets/marathon-hero.png") center / cover;
+}
+
+.login-panel {
+  width: min(420px, 100%);
+  padding: 30px;
+  color: var(--text);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 20px 44px rgba(6,32,27,.28);
+}
+
+.login-kicker { color: var(--forest); font-weight: 800; }
+.login-panel h1 { margin-top: 10px; }
+.login-panel p { color: var(--muted); line-height: 1.55; }
+.login-panel small { display: block; margin-top: 16px; color: var(--muted); line-height: 1.45; }
+
 @media (max-width: 900px) {
   .topbar { align-items: flex-start; padding: 16px 20px; }
   .brand-title { font-size: 24px; }
@@ -339,6 +381,8 @@ tbody tr:hover { background: #e7f6ed; }
 
 @media (max-width: 680px) {
   .topbar { display: grid; gap: 14px; }
+  .topbar-right { display: grid; justify-content: stretch; }
+  .user-menu { justify-content: space-between; }
   .topnav { width: 100%; overflow-x: auto; padding-bottom: 2px; }
   .nav-button { flex: 0 0 auto; min-height: 38px; padding: 7px 12px; }
   .hero { min-height: 420px; }
