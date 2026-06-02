@@ -82,7 +82,7 @@
                 </label>
                 <label class="field">
                   <span>Дата рождения</span>
-                  <input id="birth-date" name="birthDate" type="date">
+                  <input id="birth-date" name="birthDate" type="date" required>
                 </label>
                 <label class="field">
                   <span>Email</span>
@@ -111,7 +111,7 @@
               <img id="photo-preview" alt="Предпросмотр фотографии участника" hidden>
               <span id="photo-placeholder">Фото не выбрано</span>
             </div>
-            <p class="photo-filename" id="photo-filename">JPG, PNG, BMP</p>
+            <p class="photo-filename" id="photo-filename">JPG, PNG, BMP до 2 МБ</p>
             <input id="photo-input" type="file" accept=".jpg,.jpeg,.png,.bmp,image/jpeg,image/png,image/bmp" hidden>
             <div class="photo-actions">
               <button class="button button-primary" id="select-photo-button" type="button">Выбрать</button>
@@ -181,6 +181,11 @@
                 </div>
               </div>
             </div>
+            <div class="calorie-card">
+              <span>Основной обмен с учетом пола</span>
+              <strong id="daily-calories">-- ккал/день</strong>
+              <p id="calorie-note">Расчет калорий учитывает пол и возраст участника.</p>
+            </div>
             <p class="result-note">BMI = вес / рост². Результат сохранится вместе с данными участника.</p>
           </section>
         </div>
@@ -196,9 +201,33 @@
             <button class="button button-soft" type="button" data-page-link="home">Назад</button>
           </div>
 
+          <div class="participants-toolbar">
+            <label class="field toolbar-search">
+              <span>Поиск</span>
+              <input id="participant-search" type="search" placeholder="Имя, email или страна">
+            </label>
+            <label class="field toolbar-filter">
+              <span>Пол</span>
+              <select id="gender-filter">
+                <option value="all">Все</option>
+                <option value="Мужской">Мужской</option>
+                <option value="Женский">Женский</option>
+                <option value="Не указан">Не указан</option>
+              </select>
+            </label>
+            <label class="field toolbar-filter">
+              <span>Страна</span>
+              <select id="country-filter">
+                <option value="all">Все страны</option>
+              </select>
+            </label>
+            <button class="button button-soft toolbar-clear" id="clear-filters" type="button">Очистить фильтры</button>
+            <strong class="toolbar-count" id="visible-participant-count">Показано: 0 из 0</strong>
+          </div>
+
           <div class="empty-state" id="empty-state">
-            <h2>Пока нет участников</h2>
-            <p>Откройте регистрацию, заполните данные бегуна и сохраните BMI.</p>
+            <h2 id="empty-state-title">Пока нет участников</h2>
+            <p id="empty-state-text">Откройте регистрацию, заполните данные бегуна и сохраните BMI.</p>
           </div>
 
           <div class="table-wrap" id="participants-table-wrap" hidden>
@@ -206,16 +235,17 @@
               <thead>
                 <tr>
                   <th>Фото</th>
-                  <th>ФИО</th>
-                  <th>Пол</th>
+                  <th><button class="sort-button is-active" type="button" data-sort-key="fullName">ФИО <span class="sort-indicator">↑</span></button></th>
+                  <th><button class="sort-button" type="button" data-sort-key="gender">Пол <span class="sort-indicator">↕</span></button></th>
                   <th>Дата рождения</th>
-                  <th>Страна</th>
+                  <th><button class="sort-button" type="button" data-sort-key="country">Страна <span class="sort-indicator">↕</span></button></th>
                   <th>Email</th>
                   <th>Телефон</th>
                   <th>Рост</th>
                   <th>Вес</th>
-                  <th>BMI</th>
+                  <th><button class="sort-button" type="button" data-sort-key="bmi">BMI <span class="sort-indicator">↕</span></button></th>
                   <th>Категория</th>
+                  <th><button class="sort-button" type="button" data-sort-key="calories">Калории <span class="sort-indicator">↕</span></button></th>
                   <th>Действия</th>
                 </tr>
               </thead>
@@ -243,6 +273,6 @@
     </section>
   </div>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

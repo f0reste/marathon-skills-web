@@ -1,138 +1,163 @@
-const STORAGE_KEY = "marathon-skills-participants-v1";
-const pages = [...document.querySelectorAll("[data-page]")];
-const pageLinks = [...document.querySelectorAll("[data-page-link]")];
-const registrationForm = document.querySelector("#registration-form");
-const bmiForm = document.querySelector("#bmi-form");
-const photoInput = document.querySelector("#photo-input");
-const photoPreview = document.querySelector("#photo-preview");
-const photoPlaceholder = document.querySelector("#photo-placeholder");
-const photoFilename = document.querySelector("#photo-filename");
-const participantsBody = document.querySelector("#participants-body");
-const participantsTableWrap = document.querySelector("#participants-table-wrap");
-const emptyState = document.querySelector("#empty-state");
-const confirmDialog = document.querySelector("#confirm-dialog");
-const person = document.querySelector("#bmi-person");
-const scaleMarker = document.querySelector("#bmi-scale-marker");
+import "./domain.js";
 
-let participants = loadParticipants();
-let selectedPhoto = null;
-let draftParticipant = null;
-let editingId = null;
-let pendingDeleteId = null;
-let draftBmi = null;
+const {
+  AppState,
+  BmiCalculator,
+  CountdownTimer,
+  PhotoValidator,
+  fullName,
+  safePhotoDataUrl
+} = window.MarathonSkillsDomain;
 
-pageLinks.forEach((button) => {
+const state = new AppState();
+const ui = {
+  pages: [...document.querySelectorAll("[data-page]")],
+  pageLinks: [...document.querySelectorAll("[data-page-link]")],
+  registrationForm: document.querySelector("#registration-form"),
+  registrationError: document.querySelector("#registration-error"),
+  registrationTitle: document.querySelector("#registration-title"),
+  registrationSubtitle: document.querySelector("#registration-subtitle"),
+  continueBmiButton: document.querySelector("#continue-bmi-button"),
+  bmiForm: document.querySelector("#bmi-form"),
+  bmiError: document.querySelector("#bmi-error"),
+  currentRunner: document.querySelector("#current-runner"),
+  height: document.querySelector("#height"),
+  weight: document.querySelector("#weight"),
+  bmiValue: document.querySelector("#bmi-value"),
+  bmiCategory: document.querySelector("#bmi-category"),
+  dailyCalories: document.querySelector("#daily-calories"),
+  calorieNote: document.querySelector("#calorie-note"),
+  person: document.querySelector("#bmi-person"),
+  scaleMarker: document.querySelector("#bmi-scale-marker"),
+  photoInput: document.querySelector("#photo-input"),
+  photoPreview: document.querySelector("#photo-preview"),
+  photoPlaceholder: document.querySelector("#photo-placeholder"),
+  photoFilename: document.querySelector("#photo-filename"),
+  participantsBody: document.querySelector("#participants-body"),
+  participantsTableWrap: document.querySelector("#participants-table-wrap"),
+  participantsSubtitle: document.querySelector("#participants-subtitle"),
+  visibleParticipantCount: document.querySelector("#visible-participant-count"),
+  homeParticipantCount: document.querySelector("#home-participant-count"),
+  emptyState: document.querySelector("#empty-state"),
+  emptyStateTitle: document.querySelector("#empty-state-title"),
+  emptyStateText: document.querySelector("#empty-state-text"),
+  participantSearch: document.querySelector("#participant-search"),
+  genderFilter: document.querySelector("#gender-filter"),
+  countryFilter: document.querySelector("#country-filter"),
+  sortButtons: [...document.querySelectorAll("[data-sort-key]")],
+  confirmDialog: document.querySelector("#confirm-dialog"),
+  dialogText: document.querySelector("#dialog-text"),
+  countdown: document.querySelector("#countdown")
+};
+
+ui.pageLinks.forEach((button) => {
   button.addEventListener("click", () => {
     const target = button.dataset.pageLink;
-    if (target === "registration" && button.closest(".topbar, .hero")) {
-      startNewRegistration();
-    }
+    if (target === "registration" && button.closest(".topbar, .hero")) startNewRegistration();
     showPage(target);
   });
 });
 
-registrationForm.addEventListener("submit", (event) => {
+ui.registrationForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  const error = document.querySelector("#registration-error");
-  error.textContent = "";
-
-  const participant = {
-    id: editingId || crypto.randomUUID(),
-    firstName: valueOf("#first-name"),
-    lastName: valueOf("#last-name"),
-    gender: valueOf("#gender"),
-    birthDate: valueOf("#birth-date"),
-    email: valueOf("#email"),
-    phone: valueOf("#phone"),
-    country: valueOf("#country"),
-    photo: selectedPhoto,
-    heightCm: null,
-    weightKg: null,
-    bmi: null,
-    registeredAt: editingId ? findParticipant(editingId)?.registeredAt : new Date().toISOString()
-  };
-
-  if (!participant.firstName || !participant.lastName || !participant.email || !participant.phone || !participant.country) {
-    error.textContent = "Заполните все обязательные поля регистрации.";
+  ui.registrationError.textContent = "";
+  const result = state.prepareBmi(readRegistrationForm());
+  if (!result.ok) {
+    ui.registrationError.textContent = result.error;
     return;
   }
 
-  if (!participant.email.includes("@") || !participant.email.includes(".")) {
-    error.textContent = "Введите корректный email.";
-    return;
-  }
-
-  const previous = editingId ? findParticipant(editingId) : null;
-  if (previous) {
-    participant.heightCm = previous.heightCm;
-    participant.weightKg = previous.weightKg;
-    participant.bmi = previous.bmi;
-  }
-
-  draftParticipant = participant;
-  draftBmi = participant.bmi;
-  document.querySelector("#height").value = participant.heightCm ?? "";
-  document.querySelector("#weight").value = participant.weightKg ?? "";
-  document.querySelector("#current-runner").textContent = `Участник: ${fullName(participant)}`;
-  updateBmiResult(participant.bmi);
+  ui.height.value = result.participant.heightCm ?? "";
+  ui.weight.value = result.participant.weightKg ?? "";
+  ui.currentRunner.textContent = `Участник: ${fullName(result.participant)}`;
+  renderBmiResult(state.getViewModel().session.draftResult);
   showPage("bmi");
 });
 
 document.querySelector("#calculate-bmi-button").addEventListener("click", calculateBmi);
 
-bmiForm.addEventListener("submit", (event) => {
+ui.bmiForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  if (!draftParticipant || !calculateBmi()) return;
-
-  draftParticipant.heightCm = numberValue("#height");
-  draftParticipant.weightKg = numberValue("#weight");
-  draftParticipant.bmi = draftBmi;
-
-  const index = participants.findIndex((participant) => participant.id === draftParticipant.id);
-  if (index >= 0) participants[index] = draftParticipant;
-  else participants.push(draftParticipant);
-
-  saveParticipants();
-  resetDraft();
+  if (!calculateBmi()) return;
+  state.saveDraft();
+  resetBmiForm();
   renderParticipants();
   showPage("participants");
 });
 
-document.querySelector("#select-photo-button").addEventListener("click", () => photoInput.click());
+document.querySelector("#select-photo-button").addEventListener("click", () => ui.photoInput.click());
 document.querySelector("#clear-photo-button").addEventListener("click", () => {
-  selectedPhoto = null;
-  photoInput.value = "";
+  state.clearSelectedPhoto();
+  ui.photoInput.value = "";
   renderPhotoPreview();
 });
 
-photoInput.addEventListener("change", () => {
-  const file = photoInput.files[0];
-  if (!file) return;
-
-  if (!file.type.startsWith("image/")) {
-    document.querySelector("#registration-error").textContent = "Выберите изображение JPG, PNG или BMP.";
+ui.photoInput.addEventListener("change", () => {
+  const file = ui.photoInput.files[0];
+  const validation = PhotoValidator.validate(file);
+  ui.registrationError.textContent = "";
+  if (!validation.ok) {
+    ui.photoInput.value = "";
+    ui.registrationError.textContent = validation.error;
     return;
   }
 
   const reader = new FileReader();
   reader.addEventListener("load", () => {
-    selectedPhoto = { name: file.name, dataUrl: reader.result };
+    state.setSelectedPhoto({ name: file.name, dataUrl: reader.result });
+    renderPhotoPreview();
+  });
+  reader.addEventListener("error", () => {
+    state.clearSelectedPhoto();
+    ui.registrationError.textContent = "Не удалось прочитать файл фотографии. Выберите другой файл.";
     renderPhotoPreview();
   });
   reader.readAsDataURL(file);
 });
 
+ui.photoPreview.addEventListener("error", () => {
+  state.clearSelectedPhoto();
+  ui.registrationError.textContent = "Файл фотографии поврежден или недоступен.";
+  renderPhotoPreview();
+});
+
+ui.participantSearch.addEventListener("input", () => {
+  state.setFilters({ search: ui.participantSearch.value });
+  renderParticipants();
+});
+
+ui.genderFilter.addEventListener("change", () => {
+  state.setFilters({ gender: ui.genderFilter.value });
+  renderParticipants();
+});
+
+ui.countryFilter.addEventListener("change", () => {
+  state.setFilters({ country: ui.countryFilter.value });
+  renderParticipants();
+});
+
+document.querySelector("#clear-filters").addEventListener("click", () => {
+  state.clearFilters();
+  renderParticipants();
+});
+
+ui.sortButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    state.toggleSort(button.dataset.sortKey);
+    renderParticipants();
+  });
+});
+
 document.querySelector("#cancel-delete").addEventListener("click", closeDeleteDialog);
 document.querySelector("#confirm-delete").addEventListener("click", () => {
-  if (!pendingDeleteId) return;
-  participants = participants.filter((participant) => participant.id !== pendingDeleteId);
-  saveParticipants();
+  state.confirmDelete();
   closeDeleteDialog();
   renderParticipants();
 });
 
 function showPage(pageName) {
-  pages.forEach((page) => {
+  state.navigate(pageName);
+  ui.pages.forEach((page) => {
     const active = page.dataset.page === pageName;
     page.hidden = !active;
     page.classList.toggle("is-active", active);
@@ -142,123 +167,113 @@ function showPage(pageName) {
 }
 
 function startNewRegistration() {
-  registrationForm.reset();
-  editingId = null;
-  selectedPhoto = null;
-  resetDraft();
+  state.startNewRegistration();
+  ui.registrationForm.reset();
+  ui.registrationError.textContent = "";
+  ui.registrationTitle.textContent = "Регистрация бегуна";
+  ui.registrationSubtitle.textContent = "Добавьте основную информацию о себе. Следующий шаг - расчет BMI.";
+  ui.continueBmiButton.textContent = "Перейти к BMI";
   renderPhotoPreview();
-  document.querySelector("#registration-error").textContent = "";
-  document.querySelector("#registration-title").textContent = "Регистрация бегуна";
-  document.querySelector("#registration-subtitle").textContent = "Добавьте основную информацию о себе. Следующий шаг - расчет BMI.";
-  document.querySelector("#continue-bmi-button").textContent = "Перейти к BMI";
+  resetBmiForm();
 }
 
 function editParticipant(id) {
-  const participant = findParticipant(id);
-  if (!participant) return;
-
-  editingId = participant.id;
-  selectedPhoto = participant.photo || null;
-  setValue("#first-name", participant.firstName);
-  setValue("#last-name", participant.lastName);
-  setValue("#gender", participant.gender);
-  setValue("#birth-date", participant.birthDate);
-  setValue("#email", participant.email);
-  setValue("#phone", participant.phone);
-  setValue("#country", participant.country);
+  const snapshot = state.startEditing(id);
+  if (!snapshot) return;
+  const participant = snapshot.draftParticipant;
+  setFormValue("firstName", participant.firstName);
+  setFormValue("lastName", participant.lastName);
+  setFormValue("gender", participant.gender);
+  setFormValue("birthDate", participant.birthDate);
+  setFormValue("email", participant.email);
+  setFormValue("phone", participant.phone);
+  setFormValue("country", participant.country);
+  ui.registrationError.textContent = "";
+  ui.registrationTitle.textContent = "Редактирование участника";
+  ui.registrationSubtitle.textContent = "Измените данные участника и снова сохраните BMI.";
+  ui.continueBmiButton.textContent = "Сохранить через BMI";
   renderPhotoPreview();
-
-  document.querySelector("#registration-title").textContent = "Редактирование участника";
-  document.querySelector("#registration-subtitle").textContent = "Измените данные участника и снова сохраните BMI.";
-  document.querySelector("#continue-bmi-button").textContent = "Сохранить через BMI";
   showPage("registration");
 }
 
 function requestDelete(id) {
-  const participant = findParticipant(id);
+  const participant = state.requestDelete(id);
   if (!participant) return;
-  pendingDeleteId = id;
-  document.querySelector("#dialog-text").textContent = `Удалить участника ${fullName(participant)}?`;
-  confirmDialog.hidden = false;
+  ui.dialogText.textContent = `Удалить участника ${fullName(participant)}?`;
+  ui.confirmDialog.hidden = false;
 }
 
 function closeDeleteDialog() {
-  pendingDeleteId = null;
-  confirmDialog.hidden = true;
+  state.cancelDelete();
+  ui.confirmDialog.hidden = true;
 }
 
 function calculateBmi() {
-  const heightCm = numberValue("#height");
-  const weightKg = numberValue("#weight");
-  const error = document.querySelector("#bmi-error");
-  error.textContent = "";
-
-  if (!heightCm || !weightKg) {
-    error.textContent = "Введите положительные числовые значения роста и веса.";
+  ui.bmiError.textContent = "";
+  const result = state.calculateMetrics(numberValue(ui.height), numberValue(ui.weight));
+  if (!result.ok) {
+    ui.bmiError.textContent = result.error;
     return false;
   }
-  if (heightCm < 80 || heightCm > 250) {
-    error.textContent = "Рост должен быть в диапазоне от 80 до 250 см.";
-    return false;
-  }
-  if (weightKg < 20 || weightKg > 300) {
-    error.textContent = "Вес должен быть в диапазоне от 20 до 300 кг.";
-    return false;
-  }
-
-  const heightMeters = heightCm / 100;
-  draftBmi = weightKg / (heightMeters * heightMeters);
-  updateBmiResult(draftBmi);
+  renderBmiResult(result);
   return true;
 }
 
-function updateBmiResult(bmi) {
-  const bmiValue = document.querySelector("#bmi-value");
-  const bmiCategory = document.querySelector("#bmi-category");
+function renderBmiResult(result) {
   const minimum = 12;
   const maximum = 40;
+  ui.person.className = "person";
 
-  person.className = "person";
-  if (!bmi) {
-    bmiValue.textContent = "--";
-    bmiCategory.textContent = "Введите рост и вес";
-    person.style.setProperty("--person-color", "#ccf1e1");
-    scaleMarker.style.left = "0%";
-    scaleMarker.style.opacity = ".45";
+  if (!result?.bmi) {
+    ui.bmiValue.textContent = "--";
+    ui.bmiCategory.textContent = "Введите рост и вес";
+    ui.dailyCalories.textContent = "-- ккал/день";
+    ui.calorieNote.textContent = "Расчет калорий учитывает пол и возраст участника.";
+    ui.person.style.setProperty("--person-color", "#ccf1e1");
+    ui.scaleMarker.style.left = "0%";
+    ui.scaleMarker.style.opacity = ".45";
     return;
   }
 
-  const visual = bmiVisual(bmi);
-  bmiValue.textContent = bmi.toFixed(1);
-  bmiCategory.textContent = visual.label;
-  person.classList.add(visual.className);
-  person.style.setProperty("--person-color", visual.color);
+  const visual = result.visual || BmiCalculator.getVisual(result.bmi);
+  ui.bmiValue.textContent = result.bmi.toFixed(1);
+  ui.bmiCategory.textContent = visual.label;
+  ui.dailyCalories.textContent = result.calories ? `${result.calories} ккал/день` : "Недостаточно данных";
+  ui.calorieNote.textContent = result.calorieNote;
+  ui.person.classList.add(visual.className);
+  ui.person.style.setProperty("--person-color", visual.color);
 
-  const clamped = Math.min(maximum, Math.max(minimum, bmi));
-  scaleMarker.style.left = `calc(${((clamped - minimum) / (maximum - minimum)) * 100}% - 2px)`;
-  scaleMarker.style.opacity = "1";
-}
-
-function bmiVisual(bmi) {
-  if (bmi < 18.5) return { label: "Недостаточный вес", color: "#6ec5e9", className: "is-low" };
-  if (bmi < 25) return { label: "Норма", color: "#7fcf8a", className: "is-normal" };
-  if (bmi < 30) return { label: "Избыточный вес", color: "#f3c969", className: "is-high" };
-  return { label: "Ожирение", color: "#e9776b", className: "is-obesity" };
+  const clamped = Math.min(maximum, Math.max(minimum, result.bmi));
+  ui.scaleMarker.style.left = `calc(${((clamped - minimum) / (maximum - minimum)) * 100}% - 2px)`;
+  ui.scaleMarker.style.opacity = "1";
 }
 
 function renderParticipants() {
-  document.querySelector("#home-participant-count").textContent = countLabel(participants.length);
-  document.querySelector("#participants-subtitle").textContent = participants.length
-    ? `Всего участников: ${participants.length}`
+  const viewModel = state.getViewModel();
+  renderCountryOptions(viewModel);
+  ui.homeParticipantCount.textContent = countLabel(viewModel.participantsCount);
+  ui.participantsSubtitle.textContent = viewModel.participantsCount
+    ? `Всего участников: ${viewModel.participantsCount}`
     : "Зарегистрированные бегуны появятся здесь";
+  ui.visibleParticipantCount.textContent = `Показано: ${viewModel.participants.length} из ${viewModel.participantsCount}`;
 
-  emptyState.hidden = participants.length > 0;
-  participantsTableWrap.hidden = participants.length === 0;
-  participantsBody.replaceChildren();
+  ui.participantSearch.value = viewModel.filters.search;
+  ui.genderFilter.value = viewModel.filters.gender;
+  ui.countryFilter.value = viewModel.filters.country;
+  updateSortIndicators(viewModel.sort);
 
-  participants.forEach((participant) => {
+  const hasRows = viewModel.participants.length > 0;
+  ui.emptyState.hidden = hasRows;
+  ui.participantsTableWrap.hidden = !hasRows;
+  ui.emptyStateTitle.textContent = viewModel.participantsCount ? "Ничего не найдено" : "Пока нет участников";
+  ui.emptyStateText.textContent = viewModel.participantsCount
+    ? "Измените параметры поиска или очистите фильтры."
+    : "Откройте регистрацию, заполните данные бегуна и сохраните BMI.";
+  ui.participantsBody.replaceChildren();
+
+  viewModel.participants.forEach((participant) => {
     const row = document.createElement("tr");
-    const photo = participant.photo?.dataUrl
+    const photo = participant.photo && safePhotoDataUrl(participant.photo.dataUrl)
       ? `<img class="participant-photo" src="${participant.photo.dataUrl}" alt="Фото ${escapeHtml(fullName(participant))}">`
       : `<span class="participant-photo photo-empty" aria-label="Фото отсутствует">-</span>`;
 
@@ -273,7 +288,8 @@ function renderParticipants() {
       <td>${participant.heightCm ? `${participant.heightCm} см` : "-"}</td>
       <td>${participant.weightKg ? `${participant.weightKg} кг` : "-"}</td>
       <td>${participant.bmi ? participant.bmi.toFixed(1) : "Не рассчитан"}</td>
-      <td>${participant.bmi ? bmiVisual(participant.bmi).label : "Не рассчитан"}</td>
+      <td>${participant.bmi ? BmiCalculator.getVisual(participant.bmi).label : "Не рассчитан"}</td>
+      <td>${participant.calories ? `${participant.calories} ккал` : "-"}</td>
       <td>
         <div class="table-actions">
           <button class="button button-soft edit-button" type="button">Изменить</button>
@@ -283,93 +299,82 @@ function renderParticipants() {
     `;
     row.querySelector(".edit-button").addEventListener("click", () => editParticipant(participant.id));
     row.querySelector(".delete-button").addEventListener("click", () => requestDelete(participant.id));
-    participantsBody.append(row);
+    ui.participantsBody.append(row);
+  });
+}
+
+function renderCountryOptions(viewModel) {
+  const options = [
+    `<option value="all">Все страны</option>`,
+    ...viewModel.countries.map((country) => `<option value="${escapeHtml(country)}">${escapeHtml(country)}</option>`)
+  ];
+  ui.countryFilter.innerHTML = options.join("");
+}
+
+function updateSortIndicators(sort) {
+  ui.sortButtons.forEach((button) => {
+    const active = button.dataset.sortKey === sort.sortKey;
+    button.classList.toggle("is-active", active);
+    button.querySelector(".sort-indicator").textContent = active ? (sort.sortDirection === "asc" ? "↑" : "↓") : "↕";
   });
 }
 
 function renderPhotoPreview() {
-  if (selectedPhoto?.dataUrl) {
-    photoPreview.src = selectedPhoto.dataUrl;
-    photoPreview.hidden = false;
-    photoPlaceholder.hidden = true;
-    photoFilename.textContent = selectedPhoto.name;
+  const photo = state.getViewModel().session.selectedPhoto;
+  if (photo && safePhotoDataUrl(photo.dataUrl)) {
+    ui.photoPreview.src = photo.dataUrl;
+    ui.photoPreview.hidden = false;
+    ui.photoPlaceholder.hidden = true;
+    ui.photoFilename.textContent = photo.name;
   } else {
-    photoPreview.removeAttribute("src");
-    photoPreview.hidden = true;
-    photoPlaceholder.hidden = false;
-    photoFilename.textContent = "JPG, PNG, BMP";
+    ui.photoPreview.removeAttribute("src");
+    ui.photoPreview.hidden = true;
+    ui.photoPlaceholder.hidden = false;
+    ui.photoFilename.textContent = "JPG, PNG, BMP до 2 МБ";
   }
 }
 
-function resetDraft() {
-  draftParticipant = null;
-  draftBmi = null;
-  document.querySelector("#height").value = "";
-  document.querySelector("#weight").value = "";
-  document.querySelector("#bmi-error").textContent = "";
-  document.querySelector("#current-runner").textContent = "Участник не выбран";
-  updateBmiResult(null);
+function resetBmiForm() {
+  ui.height.value = "";
+  ui.weight.value = "";
+  ui.bmiError.textContent = "";
+  ui.currentRunner.textContent = "Участник не выбран";
+  renderBmiResult(null);
 }
 
-function updateCountdown() {
-  const now = new Date();
-  let target = new Date(now.getFullYear(), 5, 15, 9, 0, 0);
-  if (now > target) target = new Date(now.getFullYear() + 1, 5, 15, 9, 0, 0);
-
-  const totalSeconds = Math.max(0, Math.floor((target - now) / 1000));
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  document.querySelector("#countdown").textContent =
-    `${days} дн. ${pad(hours)} ч. ${pad(minutes)} мин. ${pad(seconds)} сек. до старта 15 июня`;
+function readRegistrationForm() {
+  const formData = new FormData(ui.registrationForm);
+  return {
+    firstName: String(formData.get("firstName") || "").trim(),
+    lastName: String(formData.get("lastName") || "").trim(),
+    gender: String(formData.get("gender") || "").trim(),
+    birthDate: String(formData.get("birthDate") || "").trim(),
+    email: String(formData.get("email") || "").trim(),
+    phone: String(formData.get("phone") || "").trim(),
+    country: String(formData.get("country") || "").trim()
+  };
 }
 
-function saveParticipants() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(participants));
+function setFormValue(name, value) {
+  ui.registrationForm.elements[name].value = value || "";
 }
 
-function loadParticipants() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-  } catch {
-    return [];
-  }
+function numberValue(input) {
+  return Number.parseFloat(input.value.replace(",", "."));
 }
 
 function countLabel(count) {
-  if (count === 1) return "1 бегун";
-  if (count >= 2 && count <= 4) return `${count} бегуна`;
+  const lastTwoDigits = count % 100;
+  const lastDigit = count % 10;
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 19) return `${count} бегунов`;
+  if (lastDigit === 1) return `${count} бегун`;
+  if (lastDigit >= 2 && lastDigit <= 4) return `${count} бегуна`;
   return `${count} бегунов`;
-}
-
-function fullName(participant) {
-  return `${participant.lastName} ${participant.firstName}`;
-}
-
-function findParticipant(id) {
-  return participants.find((participant) => participant.id === id);
 }
 
 function formatDate(value) {
   if (!value) return "Не указана";
   return new Intl.DateTimeFormat("ru-RU").format(new Date(`${value}T00:00:00`));
-}
-
-function valueOf(selector) {
-  return document.querySelector(selector).value.trim();
-}
-
-function setValue(selector, value) {
-  document.querySelector(selector).value = value || "";
-}
-
-function numberValue(selector) {
-  return Number.parseFloat(document.querySelector(selector).value.replace(",", "."));
-}
-
-function pad(value) {
-  return String(value).padStart(2, "0");
 }
 
 function escapeHtml(value) {
@@ -381,8 +386,17 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+const countdownTimer = new CountdownTimer((text) => {
+  ui.countdown.textContent = text;
+});
+
+window.addEventListener("beforeunload", () => countdownTimer.stop());
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) countdownTimer.stop();
+  else countdownTimer.start();
+});
+
 renderParticipants();
 renderPhotoPreview();
-resetDraft();
-updateCountdown();
-setInterval(updateCountdown, 1000);
+resetBmiForm();
+countdownTimer.start();
