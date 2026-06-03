@@ -197,13 +197,19 @@ export default function MarathonApp({ user }) {
     try {
       const endpoint = editingId ? `/api/participants/${editingId}` : "/api/participants";
       const method = editingId ? "PUT" : "POST";
-      await readJson(await fetch(endpoint, {
+      const savedParticipant = await readJson(await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       }));
-      await loadParticipants();
+      setParticipants((current) => {
+        if (editingId) {
+          return current.map((participant) => participant.id === savedParticipant.id ? savedParticipant : participant);
+        }
+        return [savedParticipant, ...current];
+      });
       openPage("participants");
+      await loadParticipants();
     } catch (error) {
       setBmiError(error.message);
     }
