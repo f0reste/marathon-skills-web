@@ -2,6 +2,7 @@ import { auth } from "../../../auth";
 import { getDb } from "../../../lib/db";
 import { validateParticipantInput } from "../../../lib/domain";
 import { participantFromRow } from "../../../lib/participants";
+import { uploadParticipantPhoto } from "../../../lib/storage";
 
 export const runtime = "nodejs";
 
@@ -38,6 +39,7 @@ export async function POST(request) {
   try {
     const sql = getDb();
     const participant = validation.participant;
+    const photo = await uploadParticipantPhoto(participant.photo, session.user.id);
     const [row] = await sql`
       insert into participants (
         user_id, first_name, last_name, gender, birth_date, email, phone, country,
@@ -47,7 +49,7 @@ export async function POST(request) {
         ${participant.gender}, ${participant.birthDate}, ${participant.email},
         ${participant.phone}, ${participant.country}, ${participant.heightCm},
         ${participant.weightKg}, ${participant.bmi}, ${participant.calories},
-        ${participant.photo?.name || null}, ${participant.photo?.dataUrl || null}
+        ${photo?.name || null}, ${photo?.dataUrl || null}
       )
       returning *
     `;

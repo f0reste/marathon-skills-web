@@ -2,6 +2,7 @@ import { auth } from "../../../../auth";
 import { getDb } from "../../../../lib/db";
 import { validateParticipantInput } from "../../../../lib/domain";
 import { participantFromRow } from "../../../../lib/participants";
+import { uploadParticipantPhoto } from "../../../../lib/storage";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,7 @@ export async function PUT(request, { params }) {
     const sql = getDb();
     const { id } = await params;
     const participant = validation.participant;
+    const photo = await uploadParticipantPhoto(participant.photo, session.user.id);
     const [row] = await sql`
       update participants
       set first_name = ${participant.firstName},
@@ -33,8 +35,8 @@ export async function PUT(request, { params }) {
           weight_kg = ${participant.weightKg},
           bmi = ${participant.bmi},
           calories = ${participant.calories},
-          photo_name = ${participant.photo?.name || null},
-          photo_data_url = ${participant.photo?.dataUrl || null},
+          photo_name = ${photo?.name || null},
+          photo_data_url = ${photo?.dataUrl || null},
           updated_at = now()
       where id = ${id} and user_id = ${session.user.id}
       returning *
