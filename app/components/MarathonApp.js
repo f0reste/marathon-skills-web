@@ -52,24 +52,24 @@ function resizePhoto(file) {
 
     image.onload = () => {
       URL.revokeObjectURL(objectUrl);
-      const maxSide = 480;
-      const ratio = Math.min(1, maxSide / Math.max(image.width, image.height));
-      const width = Math.max(1, Math.round(image.width * ratio));
-      const height = Math.max(1, Math.round(image.height * ratio));
+      const size = 512;
+      const cropSide = Math.min(image.width, image.height);
+      const sourceX = Math.round((image.width - cropSide) / 2);
+      const sourceY = Math.round((image.height - cropSide) / 2);
       const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = size;
+      canvas.height = size;
       const context = canvas.getContext("2d");
       if (!context) {
         reject(new Error("Не удалось подготовить фотографию."));
         return;
       }
-      context.drawImage(image, 0, 0, width, height);
+      context.drawImage(image, sourceX, sourceY, cropSide, cropSide, 0, 0, size, size);
       resolve({
         name: createPhotoName(file.name),
         dataUrl: canvas.toDataURL("image/jpeg", 0.82),
-        width,
-        height
+        width: size,
+        height: size
       });
     };
 
