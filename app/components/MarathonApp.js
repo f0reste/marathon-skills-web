@@ -261,11 +261,11 @@ export default function MarathonApp({ user }) {
       <header className="topbar">
         <button className="brand-button" type="button" onClick={() => openPage("home")} aria-label="Открыть главную страницу">
           <span className="brand-title">Marathon Skills</span>
-          <span className="brand-subtitle">Регистрация бегунов на ежегодный марафон 15 июня</span>
+          <span className="brand-subtitle">Панель управления ежегодным марафоном 15 июня</span>
         </button>
         <div className="topbar-right">
           <nav className="topnav" aria-label="Основная навигация">
-            <button className="nav-button" type="button" onClick={() => openPage("home")}>Главная</button>
+            <button className="nav-button" type="button" onClick={() => openPage("home")}>Обзор</button>
             <button className="nav-button" type="button" onClick={startNewRegistration}>Регистрация</button>
             <button className="nav-button" type="button" onClick={() => openPage("participants")}>Участники</button>
           </nav>
@@ -280,23 +280,42 @@ export default function MarathonApp({ user }) {
       <main>
         {page === "home" && (
           <section>
-            <section className="hero">
+            <section className="overview-hero">
               <img className="hero-image" src="/assets/marathon-hero.png" alt="Бегуны готовятся к марафону в зеленом парке" />
               <div className="hero-shade" />
-              <div className="hero-content">
-                <span className="hero-date">15 июня, ежегодно</span>
-                <h1>Бег начинается здесь</h1>
-                <p>Зарегистрируйте участника марафона, рассчитайте BMI и сохраните результат в облачной базе данных.</p>
-                <div className="hero-actions">
-                  <button className="button button-light" type="button" onClick={startNewRegistration}>Регистрация</button>
-                  <button className="button button-soft" type="button" onClick={() => openPage("participants")}>Список участников</button>
+              <div className="overview-content">
+                <div>
+                  <span className="hero-date">Обзор марафона</span>
+                  <h1>Marathon Skills</h1>
+                  <p>Сводка по участникам, таймеру старта и сохраненным данным. Регистрация доступна отдельным действием.</p>
+                </div>
+                <div className="overview-actions">
+                  <button className="button button-light" type="button" onClick={() => openPage("participants")}>Участники</button>
+                  <button className="button button-soft" type="button" onClick={startNewRegistration}>Добавить участника</button>
                 </div>
               </div>
             </section>
-            <section className="summary-grid">
-              <article className="info-card"><span className="card-label">Дата марафона</span><h2>15 июня</h2><p>Таймер автоматически считает время до ближайшего старта.</p></article>
-              <article className="info-card"><span className="card-label">Хранение данных</span><h2>PostgreSQL</h2><p>Данные каждого пользователя сохраняются отдельно через защищенный API.</p></article>
-              <article className="info-card"><span className="card-label">Участники</span><h2>{countLabel(participants.length)}</h2><p>После сохранения BMI участник появляется в вашей таблице.</p></article>
+            <section className="overview-grid">
+              <article className="overview-card overview-card-main">
+                <span className="card-label">До старта</span>
+                <h2><Countdown /></h2>
+                <p>Дата ближайшего марафона: 15 июня. Таймер работает в фоне и останавливается, когда вкладка неактивна.</p>
+              </article>
+              <article className="overview-card">
+                <span className="card-label">Участники</span>
+                <h2>{countLabel(participants.length)}</h2>
+                <p>{loading ? "Идет загрузка списка из базы данных." : "Список доступен в отдельном разделе с поиском, фильтрами и сортировкой."}</p>
+              </article>
+              <article className="overview-card">
+                <span className="card-label">База данных</span>
+                <h2>Supabase</h2>
+                <p>Данные сохраняются в PostgreSQL через API Vercel и привязаны к вашему Google-аккаунту.</p>
+              </article>
+              <article className="overview-card">
+                <span className="card-label">BMI</span>
+                <h2>ИМТ + шкала</h2>
+                <p>После заполнения анкеты сайт рассчитывает BMI, категорию, калории и показывает визуальную шкалу.</p>
+              </article>
             </section>
           </section>
         )}
