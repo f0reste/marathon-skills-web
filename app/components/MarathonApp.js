@@ -35,6 +35,53 @@ function countLabel(count) {
   return `${count} ${ending}`;
 }
 
+function createPhotoName(fileName) {
+  const baseName = fileName
+    .replace(/\.[^.]+$/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32) || "participant-photo";
+  return `${Date.now()}-${baseName}.jpg`;
+}
+
+function resizePhoto(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const maxSide = 480;
+      const ratio = Math.min(1, maxSide / Math.max(image.width, image.height));
+      const width = Math.max(1, Math.round(image.width * ratio));
+      const height = Math.max(1, Math.round(image.height * ratio));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        reject(new Error("Не удалось подготовить фотографию."));
+        return;
+      }
+      context.drawImage(image, 0, 0, width, height);
+      resolve({
+        name: createPhotoName(file.name),
+        dataUrl: canvas.toDataURL("image/jpeg", 0.82),
+        width,
+        height
+      });
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Не удалось прочитать фотографию."));
+    };
+
+    image.src = objectUrl;
+  });
+}
+
 async function readJson(response) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || "Произошла ошибка при обращении к API.");
@@ -226,7 +273,7 @@ export default function MarathonApp({ user }) {
     }
   }
 
-  function selectPhoto(event) {
+  async function selectPhoto(event) {
     const file = event.target.files?.[0];
     const validation = validatePhotoFile(file);
     if (!validation.ok) {
@@ -234,17 +281,18 @@ export default function MarathonApp({ user }) {
       event.target.value = "";
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (!safePhotoDataUrl(reader.result)) {
-        setFormError("Не удалось прочитать фотографию.");
+    try {
+      const resizedPhoto = await resizePhoto(file);
+      if (!safePhotoDataUrl(resizedPhoto.dataUrl)) {
+        setFormError("Не удалось подготовить фотографию.");
         return;
       }
-      setPhoto({ name: file.name, dataUrl: reader.result });
+      setPhoto(resizedPhoto);
       setFormError("");
-    };
-    reader.onerror = () => setFormError("Не удалось прочитать фотографию.");
-    reader.readAsDataURL(file);
+    } catch (error) {
+      setFormError(error.message);
+      event.target.value = "";
+    }
   }
 
   function toggleSort(key) {
@@ -354,7 +402,7 @@ export default function MarathonApp({ user }) {
                 <div className="photo-preview">
                   {photo?.dataUrl ? <img src={photo.dataUrl} alt="Фото участника" /> : <span>Фото не выбрано</span>}
                 </div>
-                <p className="photo-filename">{photo?.name || "JPG, PNG, BMP до 2 МБ"}</p>
+                <p className="photo-filename">{photo?.name ? `${photo.name}${photo.width ? `, ${photo.width}x${photo.height}` : ""}` : "JPG, PNG, BMP до 2 МБ"}</p>
                 <label className="button button-primary file-button">Выбрать<input type="file" accept=".jpg,.jpeg,.png,.bmp,image/jpeg,image/png,image/bmp" onChange={selectPhoto} /></label>
                 <button className="button button-soft" type="button" onClick={() => setPhoto(null)}>Очистить</button>
               </aside>
