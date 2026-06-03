@@ -4,7 +4,7 @@ import LoginButton from "./LoginButton";
 
 export default async function LoginPage() {
   const session = await auth();
-  if (session?.user) redirect("/");
+  if (session?.user) redirect("/dashboard");
 
   return (
     <main className="login-page">
