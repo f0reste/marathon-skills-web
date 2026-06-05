@@ -11,6 +11,8 @@ import {
   validatePhotoFile
 } from "../../lib/domain";
 
+const supportUrl = "https://t.me/Marathon432bot?start=support";
+
 const emptyForm = {
   firstName: "",
   lastName: "",
@@ -322,6 +324,7 @@ export default function MarathonApp({ user }) {
             <button className="nav-button" type="button" onClick={() => openPage("home")}>Обзор</button>
             <button className="nav-button" type="button" onClick={startNewRegistration}>Регистрация</button>
             <button className="nav-button" type="button" onClick={() => openPage("participants")}>Участники</button>
+            <a className="nav-button" href={supportUrl} target="_blank" rel="noreferrer">Техподдержка</a>
           </nav>
           <div className="user-menu">
             {user.image ? <img className="user-avatar" src={user.image} alt="" referrerPolicy="no-referrer" /> : <span className="user-avatar user-avatar-empty">U</span>}
@@ -460,6 +463,7 @@ export default function MarathonApp({ user }) {
           </section>
         )}
       </main>
+      <a className="support-fab" href={supportUrl} target="_blank" rel="noreferrer" aria-label="Открыть техподдержку в Telegram">Техподдержка</a>
       <footer className="countdown-bar"><span>До марафона:</span><Countdown /></footer>
     </div>
   );

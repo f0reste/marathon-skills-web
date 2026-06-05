@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+const supportUrl = "https://t.me/Marathon432bot?start=support";
+
 export default async function HomePage() {
   return (
     <div className="app-shell public-shell">
@@ -11,6 +13,7 @@ export default async function HomePage() {
         <nav className="topnav" aria-label="Основная навигация">
           <Link className="nav-button" href="/">Главная</Link>
           <Link className="nav-button" href="/login">Войти</Link>
+          <a className="nav-button" href={supportUrl} target="_blank" rel="noreferrer">Техподдержка</a>
         </nav>
       </header>
 
@@ -25,6 +28,7 @@ export default async function HomePage() {
               <p>Информационная главная страница проекта: регистрация участников, расчет ИМТ и сохранение данных доступны после входа через Google.</p>
             </div>
             <div className="overview-actions">
+              <a className="button button-telegram" href={supportUrl} target="_blank" rel="noreferrer">Техподдержка</a>
               <Link className="button button-light" href="/login">Войти через Google</Link>
               <Link className="button button-soft" href="/dashboard">Открыть кабинет</Link>
             </div>

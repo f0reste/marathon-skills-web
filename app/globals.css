@@ -98,6 +98,7 @@ button { cursor: pointer; }
 .button-primary { color: white; background: var(--forest); border-color: var(--forest); }
 .button-soft { color: var(--deep-forest); background: var(--mint); border-color: #d0e6db; }
 .button-danger { color: white; background: var(--danger); border-color: var(--danger); }
+.button-telegram { color: white; background: #16896f; border-color: #16896f; }
 .button-google { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; color: white; background: var(--forest); border-color: var(--forest); }
 .google-mark { display: grid; width: 24px; height: 24px; place-items: center; color: #4285f4; background: white; border-radius: 50%; font-size: 15px; font-weight: 800; }
 
@@ -384,6 +385,25 @@ tbody tr:hover { background: #e7f6ed; }
 .countdown-bar { display: flex; gap: 12px; padding: 14px 28px; color: #d8efe4; background: #092f28; font-size: 15px; }
 .countdown-bar strong { color: white; }
 
+.support-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 72px;
+  z-index: 20;
+  min-height: 42px;
+  padding: 10px 16px;
+  color: white;
+  text-decoration: none;
+  background: #16896f;
+  border: 1px solid rgba(255,255,255,.36);
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(6,32,27,.24);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.support-fab:hover { background: var(--forest); }
+
 .dialog-backdrop {
   position: fixed;
   inset: 0;
@@ -460,4 +480,5 @@ tbody tr:hover { background: #e7f6ed; }
   .participants-toolbar { grid-template-columns: 1fr; }
   .toolbar-search, .toolbar-count { grid-column: auto; }
   .countdown-bar { display: grid; gap: 3px; padding: 12px 18px; }
+  .support-fab { right: 14px; bottom: 78px; max-width: calc(100vw - 28px); }
 }

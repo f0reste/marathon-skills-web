@@ -2,6 +2,14 @@ import { getDb } from "../../../lib/db";
 
 export const runtime = "nodejs";
 
+const supportReply = [
+  "Техподдержка Marathon Skills",
+  "",
+  "Задайте вопрос прямо в этом чате.",
+  "Instagram: https://instagram.com/nikitagrech_",
+  "Telegram: @Marathon432bot"
+].join("\n");
+
 function getMessage(update) {
   return update?.message || update?.edited_message || null;
 }
@@ -11,6 +19,17 @@ function normalizeSurname(text) {
     .trim()
     .replace(/\s+/g, " ")
     .slice(0, 80);
+}
+
+function isSupportRequest(text) {
+  const normalized = text.toLocaleLowerCase("ru");
+  return normalized === "/support"
+    || normalized === "/start support"
+    || normalized.includes("support")
+    || normalized.includes("поддерж")
+    || normalized.includes("соц")
+    || normalized.includes("instagram")
+    || normalized.includes("инст");
 }
 
 function isTelegramSecretValid(request) {
@@ -111,6 +130,11 @@ export async function POST(request) {
   if (!chatId) return Response.json({ ok: true });
 
   try {
+    if (isSupportRequest(text)) {
+      await sendTelegramMessage(chatId, supportReply);
+      return Response.json({ ok: true });
+    }
+
     if (!text || text.startsWith("/start")) {
       await sendTelegramMessage(chatId, "Отправьте фамилию участника, например: Иванов. Команда /example покажет фамилию из базы.");
       return Response.json({ ok: true });
