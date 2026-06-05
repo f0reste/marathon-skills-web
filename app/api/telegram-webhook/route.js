@@ -2,8 +2,47 @@ import { getDb } from "../../../lib/db";
 
 export const runtime = "nodejs";
 
+const siteUrl = "https://marathon-skills-web-three.vercel.app";
+
+const mainKeyboard = {
+  keyboard: [
+    [{ text: "🏃 О марафоне" }, { text: "📅 Дата и место" }],
+    [{ text: "🏅 Дистанции" }, { text: "👥 Участники" }],
+    [{ text: "🔍 Найти участника" }, { text: "🌐 Открыть сайт" }],
+    [{ text: "💬 Техподдержка" }]
+  ],
+  resize_keyboard: true,
+  is_persistent: true
+};
+
+const marathonReply = [
+  "🏃 Marathon Skills",
+  "",
+  "Marathon Skills — ежегодный марафон для участников разных дистанций.",
+  "На сайте можно зарегистрировать участника, рассчитать ИМТ и сохранить данные в базе.",
+  "",
+  `Сайт: ${siteUrl}`
+].join("\n");
+
+const datePlaceReply = [
+  "📅 Дата: 15 июня 2026 года",
+  "",
+  "📍 Место: Алматы, Казахстан",
+  "⛰ У подножия Заилийского Алатау",
+  "⏰ Старт в 07:00 утра"
+].join("\n");
+
+const distancesReply = [
+  "🏅 Дистанции марафона:",
+  "",
+  "🥇 Полный марафон — 42.195 км",
+  "🥈 Полумарафон — 21 км",
+  "🥉 Забег — 10 км",
+  "🧒 Детский забег — 2 км"
+].join("\n");
+
 const supportReply = [
-  "Техподдержка Marathon Skills",
+  "💬 Техподдержка Marathon Skills",
   "",
   "Задайте вопрос прямо в этом чате.",
   "Instagram: https://instagram.com/nikitagrech_",
@@ -21,8 +60,17 @@ function normalizeSurname(text) {
     .slice(0, 80);
 }
 
+function normalizedText(text) {
+  return String(text || "").toLocaleLowerCase("ru");
+}
+
+function isButton(text, words) {
+  const normalized = normalizedText(text);
+  return words.some((word) => normalized.includes(word));
+}
+
 function isSupportRequest(text) {
-  const normalized = text.toLocaleLowerCase("ru");
+  const normalized = normalizedText(text);
   return normalized === "/support"
     || normalized === "/start support"
     || normalized.includes("support")
@@ -38,7 +86,7 @@ function isTelegramSecretValid(request) {
   return request.headers.get("x-telegram-bot-api-secret-token") === expected;
 }
 
-async function sendTelegramMessage(chatId, text) {
+async function sendTelegramMessage(chatId, text, replyMarkup = mainKeyboard) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) {
     throw new Error("TELEGRAM_BOT_TOKEN is not configured.");
@@ -49,7 +97,8 @@ async function sendTelegramMessage(chatId, text) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: chatId,
-      text
+      text,
+      reply_markup: replyMarkup
     })
   });
 
@@ -57,6 +106,26 @@ async function sendTelegramMessage(chatId, text) {
     const details = await response.text();
     throw new Error(`Telegram sendMessage failed: ${response.status} ${details}`);
   }
+}
+
+async function getParticipantsSummary() {
+  const sql = getDb();
+
+  try {
+    const [row] = await sql`
+      select count(*)::int as total
+      from telegram_lookup
+    `;
+    return Number(row?.total || 0);
+  } catch (error) {
+    if (error?.code !== "42P01") throw error;
+  }
+
+  const [row] = await sql`
+    select count(*)::int as total
+    from participants
+  `;
+  return Number(row?.total || 0);
 }
 
 async function findValueBySurname(surname) {
@@ -136,7 +205,46 @@ export async function POST(request) {
     }
 
     if (!text || text.startsWith("/start")) {
-      await sendTelegramMessage(chatId, "Отправьте фамилию участника, например: Иванов. Команда /example покажет фамилию из базы.");
+      await sendTelegramMessage(chatId, "Выберите действие на клавиатуре ниже или отправьте фамилию участника.");
+      return Response.json({ ok: true });
+    }
+
+    if (isButton(text, ["марафон"])) {
+      await sendTelegramMessage(chatId, marathonReply);
+      return Response.json({ ok: true });
+    }
+
+    if (isButton(text, ["дата", "место"])) {
+      await sendTelegramMessage(chatId, datePlaceReply);
+      return Response.json({ ok: true });
+    }
+
+    if (isButton(text, ["дистанц"])) {
+      await sendTelegramMessage(chatId, distancesReply);
+      return Response.json({ ok: true });
+    }
+
+    if (isButton(text, ["участник"]) && !isButton(text, ["найти"])) {
+      const total = await getParticipantsSummary();
+      await sendTelegramMessage(chatId, [
+        "👥 Участники марафона:",
+        "",
+        `📊 Всего зарегистрировано: ${total}`,
+        `🏃 Бегунов: ${total}`,
+        "📋 Координаторов: 0",
+        "",
+        "Для поиска конкретного участника нажмите «🔍 Найти участника» или напишите его фамилию."
+      ].join("\n"));
+      return Response.json({ ok: true });
+    }
+
+    if (isButton(text, ["найти"])) {
+      await sendTelegramMessage(chatId, "🔍 Напишите фамилию участника, и я найду его в базе.\n\nНапример: Петров");
+      return Response.json({ ok: true });
+    }
+
+    if (isButton(text, ["открыть сайт", "сайт"])) {
+      await sendTelegramMessage(chatId, `🌐 Открыть сайт Marathon Skills:\n${siteUrl}`);
       return Response.json({ ok: true });
     }
 
