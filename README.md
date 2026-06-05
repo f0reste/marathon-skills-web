@@ -54,3 +54,42 @@ https://marathon-skills-web-three.vercel.app/api/auth/callback/google
 npm install
 npm run dev
 ```
+
+## Telegram bot
+
+Webhook находится в том же проекте:
+
+```text
+https://marathon-skills-web-three.vercel.app/api/telegram-webhook
+```
+
+Что делает бот:
+
+- принимает текст сообщения как фамилию;
+- ищет запись в Supabase по `surname`;
+- возвращает `Фамилия X → значение: Y`;
+- если записи нет, пишет `Фамилия «X» не найдена в базе`.
+
+Для задания используется view `telegram_lookup` из `supabase-schema.sql`. В нем есть поля:
+
+```sql
+surname
+value
+```
+
+Если view еще не создана в Supabase, откройте SQL Editor и выполните нижнюю часть `supabase-schema.sql` с `create or replace view telegram_lookup`.
+
+Переменные Vercel:
+
+```env
+TELEGRAM_BOT_TOKEN=token_from_botfather
+TELEGRAM_WEBHOOK_SECRET=
+```
+
+`TELEGRAM_WEBHOOK_SECRET` необязателен. Если оставить пустым, webhook будет работать по обычному URL из задания.
+
+После добавления `TELEGRAM_BOT_TOKEN` выполните настройку webhook:
+
+```text
+https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://marathon-skills-web-three.vercel.app/api/telegram-webhook
+```

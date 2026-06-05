@@ -21,3 +21,10 @@ create table if not exists participants (
 );
 
 create index if not exists participants_user_id_idx on participants (user_id);
+create index if not exists participants_last_name_lower_idx on participants (lower(last_name));
+
+create or replace view telegram_lookup as
+select
+  last_name as surname,
+  concat('ИМТ ', round(bmi::numeric, 1), ', калории ', calories, ' ккал') as value
+from participants;
