@@ -64,6 +64,32 @@ async function findValueBySurname(surname) {
   return participant?.value || null;
 }
 
+async function findExampleSurname() {
+  const sql = getDb();
+
+  try {
+    const [row] = await sql`
+      select surname
+      from telegram_lookup
+      where surname is not null and surname <> ''
+      order by surname
+      limit 1
+    `;
+    return row?.surname || null;
+  } catch (error) {
+    if (error?.code !== "42P01") throw error;
+  }
+
+  const [participant] = await sql`
+    select last_name as surname
+    from participants
+    where last_name is not null and last_name <> ''
+    order by last_name
+    limit 1
+  `;
+  return participant?.surname || null;
+}
+
 export async function GET() {
   return Response.json({
     ok: true,
@@ -86,7 +112,13 @@ export async function POST(request) {
 
   try {
     if (!text || text.startsWith("/start")) {
-      await sendTelegramMessage(chatId, "Отправьте фамилию участника, например: Иванов");
+      await sendTelegramMessage(chatId, "Отправьте фамилию участника, например: Иванов. Команда /example покажет фамилию из базы.");
+      return Response.json({ ok: true });
+    }
+
+    if (text === "/example") {
+      const surname = await findExampleSurname();
+      await sendTelegramMessage(chatId, surname ? `Пример фамилии из базы: ${surname}` : "В базе пока нет фамилий для примера.");
       return Response.json({ ok: true });
     }
 
