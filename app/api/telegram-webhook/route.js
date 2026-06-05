@@ -1,5 +1,6 @@
 import { getDb } from "../../../lib/db";
 import { validateParticipantInput } from "../../../lib/domain";
+import { uploadParticipantPhoto } from "../../../lib/storage";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,64 @@ const mainKeyboard = {
   resize_keyboard: true,
   is_persistent: true
 };
+
+const yesNoKeyboard = {
+  keyboard: [
+    [{ text: "✅ Да, сохранить" }, { text: "❌ Нет, заново" }],
+    [{ text: "Отмена" }]
+  ],
+  resize_keyboard: true,
+  is_persistent: true
+};
+
+const cancelKeyboard = {
+  keyboard: [[{ text: "Отмена" }]],
+  resize_keyboard: true,
+  is_persistent: true
+};
+
+const registrationSteps = [
+  {
+    key: "firstName",
+    question: "Введите имя участника.\n\nФормат: Иван"
+  },
+  {
+    key: "lastName",
+    question: "Введите фамилию участника.\n\nФормат: Иванов"
+  },
+  {
+    key: "gender",
+    question: "Введите пол участника.\n\nФормат: Мужской или Женский"
+  },
+  {
+    key: "birthDate",
+    question: "Введите дату рождения.\n\nФормат: 2000-01-31 или 31.01.2000"
+  },
+  {
+    key: "email",
+    question: "Введите Email.\n\nФормат: ivanov@example.com"
+  },
+  {
+    key: "phone",
+    question: "Введите телефон.\n\nФормат: +7 700 123 45 67"
+  },
+  {
+    key: "country",
+    question: "Введите страну.\n\nФормат: Казахстан"
+  },
+  {
+    key: "heightCm",
+    question: "Введите рост в сантиметрах.\n\nФормат: 180"
+  },
+  {
+    key: "weightKg",
+    question: "Введите вес в килограммах.\n\nФормат: 75"
+  },
+  {
+    key: "photo",
+    question: "Отправьте фото участника.\n\nФормат: прикрепите изображение сообщением. Если фото нет, напишите: Пропустить"
+  }
+];
 
 const marathonReply = [
   "🏃 Marathon Skills",
@@ -72,6 +131,12 @@ function getMessage(update) {
   return update?.message || update?.edited_message || null;
 }
 
+function getTelegramPhoto(message) {
+  const photos = message?.photo;
+  if (!Array.isArray(photos) || photos.length === 0) return null;
+  return photos[photos.length - 1];
+}
+
 function normalizeSurname(text) {
   return String(text || "")
     .trim()
@@ -101,6 +166,16 @@ function isSupportRequest(text) {
 
 function isAddParticipantRequest(text) {
   return isButton(text, ["добавить участника"]) || normalizedText(text).startsWith("добавить участника");
+}
+
+function isCancelRequest(text) {
+  const normalized = normalizedText(text);
+  return normalized === "отмена" || normalized === "/cancel" || normalized === "❌ нет, заново";
+}
+
+function isConfirmRequest(text) {
+  const normalized = normalizedText(text);
+  return normalized === "да" || normalized === "да, сохранить" || normalized === "✅ да, сохранить";
 }
 
 function normalizeGender(value) {
@@ -176,6 +251,84 @@ async function sendTelegramMessage(chatId, text, replyMarkup = mainKeyboard) {
   }
 }
 
+function getBotToken() {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) {
+    throw new Error("TELEGRAM_BOT_TOKEN is not configured.");
+  }
+  return token;
+}
+
+async function ensureDraftTable(sql) {
+  await sql`
+    create table if not exists telegram_registration_drafts (
+      chat_id text primary key,
+      step_index integer not null default 0,
+      data jsonb not null default '{}'::jsonb,
+      updated_at timestamptz not null default now()
+    )
+  `;
+}
+
+async function getDraft(chatId) {
+  const sql = getDb();
+  await ensureDraftTable(sql);
+  const [row] = await sql`
+    select chat_id, step_index, data
+    from telegram_registration_drafts
+    where chat_id = ${String(chatId)}
+  `;
+  return row ? { chatId: row.chat_id, stepIndex: row.step_index, data: row.data || {} } : null;
+}
+
+async function saveDraft(chatId, stepIndex, data) {
+  const sql = getDb();
+  await ensureDraftTable(sql);
+  await sql`
+    insert into telegram_registration_drafts (chat_id, step_index, data, updated_at)
+    values (${String(chatId)}, ${stepIndex}, ${sql.json(data)}, now())
+    on conflict (chat_id) do update
+    set step_index = excluded.step_index,
+        data = excluded.data,
+        updated_at = now()
+  `;
+}
+
+async function clearDraft(chatId) {
+  const sql = getDb();
+  await ensureDraftTable(sql);
+  await sql`
+    delete from telegram_registration_drafts
+    where chat_id = ${String(chatId)}
+  `;
+}
+
+async function downloadTelegramPhoto(photo) {
+  if (!photo?.file_id) return null;
+
+  const token = getBotToken();
+  const fileResponse = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${photo.file_id}`);
+  const fileData = await fileResponse.json();
+  if (!fileResponse.ok || !fileData?.ok || !fileData?.result?.file_path) {
+    throw new Error("Telegram getFile failed.");
+  }
+
+  const imageResponse = await fetch(`https://api.telegram.org/file/bot${token}/${fileData.result.file_path}`);
+  if (!imageResponse.ok) {
+    throw new Error("Telegram photo download failed.");
+  }
+
+  const bytes = Buffer.from(await imageResponse.arrayBuffer());
+  if (bytes.length > 2 * 1024 * 1024) {
+    throw new Error("Фото слишком большое. Отправьте изображение до 2 МБ.");
+  }
+
+  return {
+    name: `telegram-${Date.now()}.jpg`,
+    dataUrl: `data:image/jpeg;base64,${bytes.toString("base64")}`
+  };
+}
+
 async function getParticipantsSummary() {
   const sql = getDb();
 
@@ -197,13 +350,14 @@ async function getParticipantsSummary() {
 }
 
 async function createParticipantFromTelegram(chatId, form) {
-  const validation = validateParticipantInput({ ...form, photo: null });
+  const validation = validateParticipantInput(form);
   if (!validation.ok) {
     return { ok: false, error: validation.error };
   }
 
   const sql = getDb();
   const participant = validation.participant;
+  const photo = await uploadParticipantPhoto(participant.photo, `telegram:${chatId}`);
   const [row] = await sql`
     insert into participants (
       user_id, first_name, last_name, gender, birth_date, email, phone, country,
@@ -213,7 +367,7 @@ async function createParticipantFromTelegram(chatId, form) {
       ${participant.gender}, ${participant.birthDate}, ${participant.email},
       ${participant.phone}, ${participant.country}, ${participant.heightCm},
       ${participant.weightKg}, ${participant.bmi}, ${participant.calories},
-      null, null
+      ${photo?.name || null}, ${photo?.dataUrl || null}
     )
     returning *
   `;
@@ -227,6 +381,126 @@ async function createParticipantFromTelegram(chatId, form) {
       calories: Number(row.calories)
     }
   };
+}
+
+function buildConfirmation(data) {
+  const validation = validateParticipantInput(data);
+  if (!validation.ok) return { ok: false, error: validation.error };
+
+  const participant = validation.participant;
+  return {
+    ok: true,
+    text: [
+      "Проверьте анкету:",
+      "",
+      `Фамилия: ${participant.lastName}`,
+      `Имя: ${participant.firstName}`,
+      `Пол: ${participant.gender}`,
+      `Дата рождения: ${participant.birthDate}`,
+      `Email: ${participant.email}`,
+      `Телефон: ${participant.phone}`,
+      `Страна: ${participant.country}`,
+      `Рост: ${participant.heightCm} см`,
+      `Вес: ${participant.weightKg} кг`,
+      `Фото: ${participant.photo?.dataUrl ? "добавлено" : "не добавлено"}`,
+      "",
+      `ИМТ: ${participant.bmi.toFixed(1)}`,
+      `Калории: ${participant.calories} ккал`,
+      "",
+      "Все верно?"
+    ].join("\n")
+  };
+}
+
+async function askCurrentStep(chatId, stepIndex) {
+  const step = registrationSteps[stepIndex];
+  await sendTelegramMessage(chatId, step.question, cancelKeyboard);
+}
+
+async function startRegistration(chatId) {
+  await saveDraft(chatId, 0, {});
+  await sendTelegramMessage(chatId, "Начинаем добавление участника. Ответьте на вопросы по очереди.", cancelKeyboard);
+  await askCurrentStep(chatId, 0);
+}
+
+async function handleRegistrationDraft(chatId, rawText, message) {
+  const draft = await getDraft(chatId);
+  if (!draft) return false;
+
+  if (isCancelRequest(rawText)) {
+    await clearDraft(chatId);
+    await sendTelegramMessage(chatId, "Анкета отменена. Можно начать заново через «➕ Добавить участника».");
+    return true;
+  }
+
+  if (draft.stepIndex >= registrationSteps.length) {
+    if (!isConfirmRequest(rawText)) {
+      await sendTelegramMessage(chatId, "Ответьте «✅ Да, сохранить» или «❌ Нет, заново».", yesNoKeyboard);
+      return true;
+    }
+
+    const created = await createParticipantFromTelegram(chatId, draft.data);
+    if (!created.ok) {
+      await clearDraft(chatId);
+      await sendTelegramMessage(chatId, `Не удалось сохранить участника: ${created.error}\n\nНачните заново через «➕ Добавить участника».`);
+      return true;
+    }
+
+    await clearDraft(chatId);
+    await sendTelegramMessage(chatId, [
+      "✅ Участник добавлен в базу данных",
+      "",
+      `Фамилия: ${created.participant.lastName}`,
+      `Имя: ${created.participant.firstName}`,
+      `ИМТ: ${created.participant.bmi.toFixed(1)}`,
+      `Калории: ${created.participant.calories} ккал`
+    ].join("\n"));
+    return true;
+  }
+
+  const step = registrationSteps[draft.stepIndex];
+  const data = { ...draft.data };
+
+  if (step.key === "photo") {
+    const photo = getTelegramPhoto(message);
+    if (photo) {
+      try {
+        data.photo = await downloadTelegramPhoto(photo);
+      } catch (error) {
+        await sendTelegramMessage(chatId, error.message || "Не удалось обработать фото. Отправьте другое фото или напишите: Пропустить", cancelKeyboard);
+        return true;
+      }
+    } else if (normalizedText(rawText) === "пропустить") {
+      data.photo = null;
+    } else {
+      await sendTelegramMessage(chatId, "Отправьте фото изображением или напишите: Пропустить", cancelKeyboard);
+      return true;
+    }
+  } else {
+    if (!rawText) {
+      await askCurrentStep(chatId, draft.stepIndex);
+      return true;
+    }
+    data[step.key] = step.key === "gender" ? normalizeGender(rawText) : step.key === "birthDate" ? normalizeDate(rawText) : rawText;
+  }
+
+  const nextStepIndex = draft.stepIndex + 1;
+  await saveDraft(chatId, nextStepIndex, data);
+
+  if (nextStepIndex < registrationSteps.length) {
+    await askCurrentStep(chatId, nextStepIndex);
+    return true;
+  }
+
+  const confirmation = buildConfirmation(data);
+  if (!confirmation.ok) {
+    await clearDraft(chatId);
+    await sendTelegramMessage(chatId, `В анкете ошибка: ${confirmation.error}\n\nНачните заново через «➕ Добавить участника».`);
+    return true;
+  }
+
+  await sendTelegramMessage(chatId, confirmation.text, yesNoKeyboard);
+  return true;
 }
 
 async function findValueBySurname(surname) {
@@ -306,32 +580,17 @@ export async function POST(request) {
       return Response.json({ ok: true });
     }
 
+    if (await handleRegistrationDraft(chatId, rawText, message)) {
+      return Response.json({ ok: true });
+    }
+
     if (!text || text.startsWith("/start")) {
       await sendTelegramMessage(chatId, "Выберите действие на клавиатуре ниже, отправьте фамилию участника или нажмите «➕ Добавить участника».");
       return Response.json({ ok: true });
     }
 
     if (isAddParticipantRequest(rawText)) {
-      const form = parseParticipantForm(rawText);
-      if (Object.keys(form).length < 9) {
-        await sendTelegramMessage(chatId, addParticipantTemplate);
-        return Response.json({ ok: true });
-      }
-
-      const created = await createParticipantFromTelegram(chatId, form);
-      if (!created.ok) {
-        await sendTelegramMessage(chatId, `Не удалось добавить участника: ${created.error}\n\n${addParticipantTemplate}`);
-        return Response.json({ ok: true });
-      }
-
-      await sendTelegramMessage(chatId, [
-        "✅ Участник добавлен в базу данных",
-        "",
-        `Фамилия: ${created.participant.lastName}`,
-        `Имя: ${created.participant.firstName}`,
-        `ИМТ: ${created.participant.bmi.toFixed(1)}`,
-        `Калории: ${created.participant.calories} ккал`
-      ].join("\n"));
+      await startRegistration(chatId);
       return Response.json({ ok: true });
     }
 
