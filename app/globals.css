@@ -477,6 +477,8 @@ tbody tr:hover { background: #e7f6ed; }
 .photo-empty { display: grid; place-items: center; color: var(--muted); font-size: 16px; }
 .table-actions { display: flex; gap: 8px; }
 .table-actions .button { min-height: 34px; padding: 5px 10px; font-size: 13px; }
+.is-user .participants-panel th:last-child,
+.is-user .participants-panel td:last-child { display: none; }
 
 .countdown-bar { display: flex; gap: 12px; padding: 14px 28px; color: #d8efe4; background: #092f28; font-size: 15px; }
 .countdown-bar strong { color: white; }

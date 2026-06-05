@@ -1,4 +1,5 @@
 import { auth } from "../../../../auth";
+import { forbidden, isAdminUser } from "../../../../lib/authz";
 import { getDb } from "../../../../lib/db";
 import { validateParticipantInput } from "../../../../lib/domain";
 import { participantFromRow } from "../../../../lib/participants";
@@ -13,6 +14,7 @@ function unauthorized() {
 export async function PUT(request, { params }) {
   const session = await auth();
   if (!session?.user?.id) return unauthorized();
+  if (!isAdminUser(session.user)) return forbidden();
 
   const validation = validateParticipantInput(await request.json());
   if (!validation.ok) return Response.json({ error: validation.error }, { status: 400 });
@@ -38,7 +40,7 @@ export async function PUT(request, { params }) {
           photo_name = ${photo?.name || null},
           photo_data_url = ${photo?.dataUrl || null},
           updated_at = now()
-      where id = ${id} and user_id = ${session.user.id}
+      where id = ${id}
       returning *
     `;
     if (!row) return Response.json({ error: "Участник не найден." }, { status: 404 });
@@ -52,13 +54,14 @@ export async function PUT(request, { params }) {
 export async function DELETE(_request, { params }) {
   const session = await auth();
   if (!session?.user?.id) return unauthorized();
+  if (!isAdminUser(session.user)) return forbidden();
 
   try {
     const sql = getDb();
     const { id } = await params;
     const rows = await sql`
       delete from participants
-      where id = ${id} and user_id = ${session.user.id}
+      where id = ${id}
       returning id
     `;
     if (!rows.length) return Response.json({ error: "Участник не найден." }, { status: 404 });

@@ -12,6 +12,7 @@ import {
 } from "../../lib/domain";
 
 const supportUrl = "https://t.me/Marathon432bot?start=support";
+const adminEmail = "notnamenf4@gmail.com";
 
 const emptyForm = {
   firstName: "",
@@ -122,6 +123,7 @@ function Countdown() {
 }
 
 export default function MarathonApp({ user }) {
+  const isAdmin = String(user.email || "").toLowerCase() === adminEmail;
   const [page, setPage] = useState("home");
   const [participants, setParticipants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -180,6 +182,10 @@ export default function MarathonApp({ user }) {
   }
 
   function editParticipant(participant) {
+    if (!isAdmin) {
+      setNotice("Редактирование доступно только администратору.");
+      return;
+    }
     setEditingId(participant.id);
     setForm({
       firstName: participant.firstName,
@@ -265,6 +271,10 @@ export default function MarathonApp({ user }) {
   }
 
   async function deleteParticipant(participant) {
+    if (!isAdmin) {
+      setNotice("Удаление доступно только администратору.");
+      return;
+    }
     if (!window.confirm(`Удалить участника ${fullName(participant)}?`)) return;
     try {
       const response = await fetch(`/api/participants/${participant.id}`, { method: "DELETE" });
@@ -313,7 +323,7 @@ export default function MarathonApp({ user }) {
   const marker = metrics?.bmi ? Math.min(100, Math.max(0, ((metrics.bmi - 12) / 28) * 100)) : 0;
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${isAdmin ? "is-admin" : "is-user"}`}>
       <header className="topbar">
         <button className="brand-button" type="button" onClick={() => openPage("home")} aria-label="Открыть главную страницу">
           <span className="brand-title">Marathon Skills</span>
@@ -336,14 +346,14 @@ export default function MarathonApp({ user }) {
       <main>
         {page === "home" && (
           <section>
-            <section className="overview-hero">
+            <section className="overview-hero public-hero">
               <img className="hero-image" src="/assets/marathon-hero.png" alt="Бегуны готовятся к марафону в зеленом парке" />
               <div className="hero-shade" />
-              <div className="overview-content">
+              <div className="overview-content public-hero-content">
                 <div>
-                  <span className="hero-date">Обзор марафона</span>
+                  <span className="hero-date">15 июня 2026 · Алматы</span>
                   <h1>Marathon Skills</h1>
-                  <p>Сводка по участникам, таймеру старта и сохраненным данным. Регистрация доступна отдельным действием.</p>
+                  <p>Городской марафон для бегунов, семей и координаторов. В кабинете можно добавить участника, рассчитать ИМТ, сохранить фото и проверить данные через Telegram-бота.</p>
                 </div>
                 <div className="overview-actions">
                   <button className="button button-light" type="button" onClick={() => openPage("participants")}>Участники</button>
@@ -372,6 +382,47 @@ export default function MarathonApp({ user }) {
                 <h2>ИМТ + шкала</h2>
                 <p>После заполнения анкеты сайт рассчитывает BMI, категорию, калории и показывает визуальную шкалу.</p>
               </article>
+            </section>
+            <section className="event-strip" aria-label="Ключевая информация">
+              <article className="stat-tile"><span>Дата</span><strong>15 июня</strong><p>Стартовый день марафона 2026 года</p></article>
+              <article className="stat-tile"><span>Место</span><strong>Алматы</strong><p>Маршрут у подножия Заилийского Алатау</p></article>
+              <article className="stat-tile"><span>Старт</span><strong>07:00</strong><p>Утренний старт для основных дистанций</p></article>
+              <article className="stat-tile"><span>Роль</span><strong>{isAdmin ? "Админ" : "Участник"}</strong><p>{isAdmin ? "Доступно управление всеми участниками" : "Редактирование и удаление закрыты"}</p></article>
+            </section>
+            <section className="section-band">
+              <div className="section-heading">
+                <span className="card-label">Дистанции</span>
+                <h2>Маршруты марафона</h2>
+                <p>Полный марафон, полумарафон, 10 км и детский забег. Данные участника сохраняются в базе и доступны для поиска через Telegram-бота.</p>
+              </div>
+              <div className="distance-list">
+                <article className="distance-card"><strong>42.195 км</strong><span>Полный марафон</span><p>Главная дистанция для опытных бегунов.</p></article>
+                <article className="distance-card"><strong>21 км</strong><span>Полумарафон</span><p>Средняя дистанция для уверенного старта.</p></article>
+                <article className="distance-card"><strong>10 км</strong><span>Городской забег</span><p>Доступный формат для большинства участников.</p></article>
+                <article className="distance-card"><strong>2 км</strong><span>Детский забег</span><p>Короткий семейный маршрут.</p></article>
+              </div>
+            </section>
+            <section className="split-section">
+              <div className="section-band schedule-band">
+                <div className="section-heading">
+                  <span className="card-label">Программа</span>
+                  <h2>Расписание дня</h2>
+                </div>
+                <div className="schedule-list">
+                  <article className="schedule-item"><strong>06:00</strong><p>Открытие стартового городка</p></article>
+                  <article className="schedule-item"><strong>07:00</strong><p>Старт марафона и полумарафона</p></article>
+                  <article className="schedule-item"><strong>08:30</strong><p>Старт дистанций 10 км и 2 км</p></article>
+                  <article className="schedule-item"><strong>11:30</strong><p>Награждение участников</p></article>
+                </div>
+              </div>
+              <div className="location-panel">
+                <img src="/assets/marathon-hero.png" alt="Парк и беговая зона марафона" />
+                <div>
+                  <span className="card-label">Telegram</span>
+                  <h2>Бот уже подключен</h2>
+                  <p>Через @Marathon432bot можно открыть сайт, посмотреть дистанции, найти участника по фамилии и получить контакты техподдержки.</p>
+                </div>
+              </div>
             </section>
           </section>
         )}

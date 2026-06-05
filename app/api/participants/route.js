@@ -1,4 +1,5 @@
 import { auth } from "../../../auth";
+import { isAdminUser } from "../../../lib/authz";
 import { getDb } from "../../../lib/db";
 import { validateParticipantInput } from "../../../lib/domain";
 import { participantFromRow } from "../../../lib/participants";
@@ -16,12 +17,18 @@ export async function GET() {
 
   try {
     const sql = getDb();
-    const rows = await sql`
-      select *
-      from participants
-      where user_id = ${session.user.id}
-      order by registered_at desc
-    `;
+    const rows = isAdminUser(session.user)
+      ? await sql`
+        select *
+        from participants
+        order by registered_at desc
+      `
+      : await sql`
+        select *
+        from participants
+        where user_id = ${session.user.id}
+        order by registered_at desc
+      `;
     return Response.json(rows.map(participantFromRow));
   } catch (error) {
     console.error(error);
